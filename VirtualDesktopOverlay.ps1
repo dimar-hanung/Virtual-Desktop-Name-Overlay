@@ -250,6 +250,18 @@ try {
     $form.Width = 260
     $form.Height = 42
 
+    $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
+    $showOverlayMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem("Show overlay")
+    $exitMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem("Exit")
+    [void]$trayMenu.Items.Add($showOverlayMenuItem)
+    [void]$trayMenu.Items.Add($exitMenuItem)
+
+    $trayIcon = New-Object System.Windows.Forms.NotifyIcon
+    $trayIcon.Text = $AppDisplayName
+    $trayIcon.Icon = [System.Drawing.SystemIcons]::Application
+    $trayIcon.ContextMenuStrip = $trayMenu
+    $trayIcon.Visible = $true
+
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     $savedPosition = Get-SavedOverlayPosition
     if (($null -ne $savedPosition) -and (Test-OverlayPositionVisible -Position $savedPosition -Width $form.Width -Height $form.Height)) {
@@ -328,9 +340,20 @@ try {
         param($sender, $eventArgs)
 
         if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Right) {
-            $form.Close()
+            $form.Hide()
         }
     }
+
+    $showOverlay = {
+        $form.Show()
+        $form.Activate()
+    }
+
+    $showOverlayMenuItem.Add_Click($showOverlay)
+    $trayIcon.Add_DoubleClick($showOverlay)
+    $exitMenuItem.Add_Click({
+        $form.Close()
+    })
 
     $form.Add_MouseDown($startDrag)
     $form.Add_MouseMove($moveDrag)
@@ -346,6 +369,15 @@ try {
         if ($refreshTimer -ne $null) {
             $refreshTimer.Stop()
             $refreshTimer.Dispose()
+        }
+
+        if ($trayIcon -ne $null) {
+            $trayIcon.Visible = $false
+            $trayIcon.Dispose()
+        }
+
+        if ($trayMenu -ne $null) {
+            $trayMenu.Dispose()
         }
     })
 

@@ -1,7 +1,7 @@
 #define MyAppName "Virtual Desktop Overlay"
-#define MyAppVersion "0.1.0"
-#define MyAppPublisher "VirtualDesktopOverlay"
-#define MyAppURL "https://github.com/MScholtes/PSVirtualDesktop"
+#define MyAppVersion "0.1.1"
+#define MyAppPublisher "dimar-hanung"
+#define MyAppURL "https://github.com/dimar-hanung/Virtual-Desktop-Name-Overlay"
 
 [Setup]
 AppId={{70C5371A-7DE2-4762-A979-E595D739E152}
@@ -34,7 +34,6 @@ Name: "startmenu"; Description: "Create Start Menu shortcut"; GroupDescription: 
 
 [Files]
 Source: "..\VirtualDesktopOverlay.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\StartVirtualDesktopOverlay.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\StopVirtualDesktopOverlay.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -42,16 +41,16 @@ Source: "..\modules\VirtualDesktop\DEPENDENCY.txt"; DestDir: "{app}\modules\Virt
 Source: "..\modules\VirtualDesktop\1.5.11\*"; DestDir: "{app}\modules\VirtualDesktop\1.5.11"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{win}\System32\wscript.exe"; Parameters: """{app}\StartVirtualDesktopOverlay.vbs"""; WorkingDir: "{app}"; Tasks: startmenu
+Name: "{group}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -STA -WindowStyle Minimized -File ""{app}\VirtualDesktopOverlay.ps1"""; WorkingDir: "{app}"; Tasks: startmenu
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VirtualDesktopOverlay"; ValueData: """{win}\System32\wscript.exe"" ""{app}\StartVirtualDesktopOverlay.vbs"""; Flags: uninsdeletevalue; Tasks: startup
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VirtualDesktopOverlay"; ValueData: """{sys}\WindowsPowerShell\v1.0\powershell.exe"" -NoProfile -STA -WindowStyle Minimized -File ""{app}\VirtualDesktopOverlay.ps1"""; Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
-Filename: "{win}\System32\wscript.exe"; Parameters: """{app}\StartVirtualDesktopOverlay.vbs"""; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: postinstall nowait skipifsilent runasoriginaluser
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -STA -WindowStyle Minimized -File ""{app}\VirtualDesktopOverlay.ps1"""; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\StopVirtualDesktopOverlay.ps1"" -InstallPath ""{app}"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -File ""{app}\StopVirtualDesktopOverlay.ps1"" -InstallPath ""{app}"""; Flags: waituntilterminated; RunOnceId: "StopVirtualDesktopOverlay"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\VirtualDesktopOverlay"
