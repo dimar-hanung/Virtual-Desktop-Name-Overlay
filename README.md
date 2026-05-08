@@ -1,28 +1,25 @@
 # Virtual Desktop Overlay
 
-Virtual Desktop Overlay is a lightweight Windows PowerShell overlay that shows the active Windows virtual desktop name. It uses WinForms for the overlay window and the `VirtualDesktop` PowerShell module for Windows virtual desktop APIs.
+Virtual Desktop Overlay is a lightweight native Windows WinForms overlay that shows the active Windows virtual desktop name. It reads virtual desktop state directly from Windows and uses COM interop to pin the overlay across desktops.
 
 ## Runtime Requirements
 
 - Windows 10 version 2004 build 19041 or later, or Windows 11.
-- Windows PowerShell 5.1 through `powershell.exe`.
-- The bundled `VirtualDesktop` PowerShell module version `1.5.11` at `modules\VirtualDesktop\1.5.11\`.
+- No PowerShell runtime dependency.
 
 ## Running Locally
 
-Run the overlay directly with:
+Build and run the native app during development with:
 
 ```powershell
-powershell.exe -NoProfile -STA -File .\VirtualDesktopOverlay.ps1
+dotnet run --project .\src\VirtualDesktopOverlay\VirtualDesktopOverlay.csproj
 ```
 
-Run it minimized with:
+After publishing or installing, run the app directly:
 
 ```powershell
-powershell.exe -NoProfile -STA -WindowStyle Minimized -File .\VirtualDesktopOverlay.ps1
+.\publish\win-x64\VirtualDesktopOverlay.exe
 ```
-
-The overlay prefers the bundled module at `modules\VirtualDesktop\1.5.11\VirtualDesktop.psd1`. If that file is not present, it falls back to a globally installed `VirtualDesktop` module and writes a warning to `%LOCALAPPDATA%\VirtualDesktopOverlay\logs\overlay.log`.
 
 ## Overlay Controls
 
@@ -38,26 +35,19 @@ The Inno Setup installer is defined in `installer\VirtualDesktopOverlay.iss`.
 
 - Installs per user under `%APPDATA%\VirtualDesktopOverlay`.
 - Does not require administrator elevation.
-- Installs `VirtualDesktopOverlay.ps1`, `StopVirtualDesktopOverlay.ps1`, and the bundled `VirtualDesktop` module.
+- Installs `VirtualDesktopOverlay.exe` and its published .NET runtime files.
 - Offers a selected-by-default `Start with Windows` task that writes `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\VirtualDesktopOverlay`.
-- Offers a Start Menu shortcut that launches minimized PowerShell directly without overriding execution policy.
+- Offers a Start Menu shortcut that launches `VirtualDesktopOverlay.exe` directly.
 - Offers a post-install launch checkbox.
-- On uninstall, removes the HKCU Run value, stops the overlay instance launched from the installed path, and removes app-created data under `%LOCALAPPDATA%\VirtualDesktopOverlay`.
+- On uninstall, removes the HKCU Run value and app-created data under `%LOCALAPPDATA%\VirtualDesktopOverlay`.
 
 ## Build Requirements
 
 - Inno Setup 6.x.
-- PowerShellGet `Save-Module` or PSResourceGet `Save-PSResource` for refreshing the bundled dependency.
-- Internet access only when running `tools\prepare-dependencies.ps1`.
+- .NET SDK 9.x.
 - Optional code-signing certificate and `signtool.exe` for public distribution.
 
 ## Packaging Workflow
-
-Prepare the pinned dependency:
-
-```powershell
-.\tools\prepare-dependencies.ps1
-```
 
 Compile the installer:
 
@@ -65,7 +55,7 @@ Compile the installer:
 .\tools\build-installer.ps1
 ```
 
-The build script verifies that `modules\VirtualDesktop\1.5.11\VirtualDesktop.psd1` exists before invoking Inno Setup. The installer output is written to `dist\`.
+The build script publishes the native WinForms app to `publish\win-x64\` before invoking Inno Setup. The installer output is written to `dist\`.
 
 To sign the generated installer, pass signing options to the build script:
 
@@ -85,4 +75,4 @@ Runtime diagnostics are written to:
 %LOCALAPPDATA%\VirtualDesktopOverlay\logs\overlay.log
 ```
 
-Startup failures are shown in the overlay when WinForms is available, including unsupported Windows versions, missing `VirtualDesktop`, and missing required module commands.
+Startup failures are shown in the overlay when possible, including unsupported Windows versions and virtual desktop API errors.

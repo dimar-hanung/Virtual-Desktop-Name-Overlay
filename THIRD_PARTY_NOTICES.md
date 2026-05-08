@@ -1,12 +1,12 @@
 # Third Party Notices
 
-This project bundles the following runtime dependency for installer builds.
+This project adapts a small amount of Windows virtual desktop COM interop knowledge from the following project.
 
-## VirtualDesktop PowerShell Module
+## PSVirtualDesktop
 
 - Name: `VirtualDesktop`
-- Pinned version: `1.5.11`
+- Referenced version: `1.5.11`
 - PowerShell Gallery: https://www.powershellgallery.com/packages/VirtualDesktop/1.5.11
 - Source repository: https://github.com/MScholtes/PSVirtualDesktop
 
-Review the upstream repository and PowerShell Gallery package metadata before public distribution to confirm current licensing and notice requirements.
+The installer no longer bundles or runs the PowerShell module. Review the upstream repository and PowerShell Gallery package metadata before public distribution to confirm current licensing and notice requirements.

@@ -2,6 +2,8 @@ param(
     [string]$InnoSetupCompilerPath,
     [string]$SignToolPath,
     [string]$CertificateThumbprint,
+    [string]$Configuration = "Release",
+    [string]$RuntimeIdentifier = "win-x64",
     [string]$TimestampUrl = "http://timestamp.digicert.com"
 )
 
@@ -9,8 +11,9 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $issPath = Join-Path $repoRoot "installer\VirtualDesktopOverlay.iss"
-$moduleManifest = Join-Path $repoRoot "modules\VirtualDesktop\1.5.11\VirtualDesktop.psd1"
+$projectPath = Join-Path $repoRoot "src\VirtualDesktopOverlay\VirtualDesktopOverlay.csproj"
 $distRoot = Join-Path $repoRoot "dist"
+$publishRoot = Join-Path $repoRoot "publish\$RuntimeIdentifier"
 
 function Resolve-InnoCompiler {
     param([string]$ExplicitPath)
@@ -47,8 +50,8 @@ if (-not (Test-Path -LiteralPath $issPath)) {
     throw "Installer script is missing: $issPath"
 }
 
-if (-not (Test-Path -LiteralPath $moduleManifest)) {
-    throw "Bundled VirtualDesktop module is missing. Run tools\prepare-dependencies.ps1 first."
+if (-not (Test-Path -LiteralPath $projectPath)) {
+    throw "Native overlay project is missing: $projectPath"
 }
 
 if (-not (Test-Path -LiteralPath $distRoot)) {
@@ -56,6 +59,23 @@ if (-not (Test-Path -LiteralPath $distRoot)) {
 }
 
 $iscc = Resolve-InnoCompiler -ExplicitPath $InnoSetupCompilerPath
+
+if (Test-Path -LiteralPath $publishRoot) {
+    Remove-Item -LiteralPath $publishRoot -Recurse -Force
+}
+
+dotnet publish $projectPath `
+    --configuration $Configuration `
+    --runtime $RuntimeIdentifier `
+    --self-contained true `
+    --output $publishRoot `
+    /p:PublishSingleFile=false `
+    /p:PublishReadyToRun=false
+
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE."
+}
+
 & $iscc $issPath
 
 if ($LASTEXITCODE -ne 0) {

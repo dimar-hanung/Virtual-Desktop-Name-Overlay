@@ -1,5 +1,8 @@
 # Build outputs
 /dist/
+/publish/
+bin/
+obj/
 
 # Local runtime diagnostics
 *.log

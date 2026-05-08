@@ -1,6 +1,0 @@
-﻿VirtualDesktop dependency
-Name: VirtualDesktop
-Version: 1.5.11
-Source: https://www.powershellgallery.com/packages/VirtualDesktop/1.5.11
-Repository: https://github.com/MScholtes/PSVirtualDesktop
-PreparedAtUtc: 2026-05-08T10:54:38Z
