@@ -2,6 +2,7 @@ $AppDisplayName = "Virtual Desktop Overlay"
 $AppDataRoot = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "VirtualDesktopOverlay"
 $LogRoot = Join-Path $AppDataRoot "logs"
 $LogFile = Join-Path $LogRoot "overlay.log"
+$SettingsFile = Join-Path $AppDataRoot "settings.json"
 $RequiredVirtualDesktopVersion = "1.5.11"
 $BundledVirtualDesktopManifest = Join-Path $PSScriptRoot "modules\VirtualDesktop\$RequiredVirtualDesktopVersion\VirtualDesktop.psd1"
 $RequiredVirtualDesktopCommands = @(
@@ -153,6 +154,68 @@ function Get-CurrentVirtualDesktopName {
     }
 }
 
+function Get-SavedOverlayPosition {
+    try {
+        if (-not (Test-Path -LiteralPath $SettingsFile)) {
+            return $null
+        }
+
+        $settings = Get-Content -LiteralPath $SettingsFile -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (($null -eq $settings.Left) -or ($null -eq $settings.Top)) {
+            return $null
+        }
+
+        return New-Object System.Drawing.Point([int]$settings.Left, [int]$settings.Top)
+    }
+    catch {
+        Write-OverlayLog "Failed to load overlay settings: $($_.Exception.Message)" "WARN"
+        return $null
+    }
+}
+
+function Test-OverlayPositionVisible {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Drawing.Point]$Position,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Width,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Height
+    )
+
+    $overlayBounds = New-Object System.Drawing.Rectangle($Position.X, $Position.Y, $Width, $Height)
+    foreach ($screen in [System.Windows.Forms.Screen]::AllScreens) {
+        if ($screen.WorkingArea.IntersectsWith($overlayBounds)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Save-OverlayPosition {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Forms.Form]$Form
+    )
+
+    try {
+        if (-not (Test-Path -LiteralPath $AppDataRoot)) {
+            New-Item -ItemType Directory -Path $AppDataRoot -Force | Out-Null
+        }
+
+        [pscustomobject]@{
+            Left = $Form.Left
+            Top = $Form.Top
+        } | ConvertTo-Json | Set-Content -LiteralPath $SettingsFile -Encoding UTF8
+    }
+    catch {
+        Write-OverlayLog "Failed to save overlay position: $($_.Exception.Message)" "WARN"
+    }
+}
+
 if (-not (Start-SingleInstance)) {
     return
 }
@@ -188,8 +251,15 @@ try {
     $form.Height = 42
 
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    $form.Left = $screen.Right - $form.Width - 20
-    $form.Top = $screen.Bottom - $form.Height - 20
+    $savedPosition = Get-SavedOverlayPosition
+    if (($null -ne $savedPosition) -and (Test-OverlayPositionVisible -Position $savedPosition -Width $form.Width -Height $form.Height)) {
+        $form.Left = $savedPosition.X
+        $form.Top = $savedPosition.Y
+    }
+    else {
+        $form.Left = $screen.Right - $form.Width - 20
+        $form.Top = $screen.Bottom - $form.Height - 20
+    }
 
     $label = New-Object System.Windows.Forms.Label
     $label.Dock = "Fill"
@@ -208,13 +278,68 @@ try {
     })
     $refreshTimer.Start()
 
+    $dragState = @{
+        IsDragging = $false
+        CursorStart = $null
+        FormStart = $null
+    }
+
+    $startDrag = {
+        param($sender, $eventArgs)
+
+        if ($eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left) {
+            return
+        }
+
+        $dragState["IsDragging"] = $true
+        $dragState["CursorStart"] = [System.Windows.Forms.Cursor]::Position
+        $dragState["FormStart"] = $form.Location
+        $sender.Capture = $true
+    }
+
+    $moveDrag = {
+        param($sender, $eventArgs)
+
+        if (-not $dragState["IsDragging"]) {
+            return
+        }
+
+        $currentCursor = [System.Windows.Forms.Cursor]::Position
+        $cursorStart = $dragState["CursorStart"]
+        $formStart = $dragState["FormStart"]
+
+        $form.Left = $formStart.X + ($currentCursor.X - $cursorStart.X)
+        $form.Top = $formStart.Y + ($currentCursor.Y - $cursorStart.Y)
+    }
+
+    $stopDrag = {
+        param($sender, $eventArgs)
+
+        if (-not $dragState["IsDragging"]) {
+            return
+        }
+
+        $dragState["IsDragging"] = $false
+        $sender.Capture = $false
+        Save-OverlayPosition -Form $form
+    }
+
     $closeOnRightClick = {
-        if ($_.Button -eq [System.Windows.Forms.MouseButtons]::Right) {
+        param($sender, $eventArgs)
+
+        if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Right) {
             $form.Close()
         }
     }
 
+    $form.Add_MouseDown($startDrag)
+    $form.Add_MouseMove($moveDrag)
+    $form.Add_MouseUp($stopDrag)
     $form.Add_MouseUp($closeOnRightClick)
+
+    $label.Add_MouseDown($startDrag)
+    $label.Add_MouseMove($moveDrag)
+    $label.Add_MouseUp($stopDrag)
     $label.Add_MouseUp($closeOnRightClick)
 
     $form.Add_FormClosed({

@@ -25,6 +25,12 @@ wscript.exe .\StartVirtualDesktopOverlay.vbs
 
 The overlay prefers the bundled module at `modules\VirtualDesktop\1.5.11\VirtualDesktop.psd1`. If that file is not present, it falls back to a globally installed `VirtualDesktop` module and writes a warning to `%LOCALAPPDATA%\VirtualDesktopOverlay\logs\overlay.log`.
 
+## Overlay Controls
+
+- Left-click and drag the overlay to move it.
+- Right-click the overlay to close it.
+- The moved position is saved to `%LOCALAPPDATA%\VirtualDesktopOverlay\settings.json` and restored on the next launch when it is still visible on an attached screen.
+
 ## Installer Behavior
 
 The Inno Setup installer is defined in `installer\VirtualDesktopOverlay.iss`.
