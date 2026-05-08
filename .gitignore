@@ -1,0 +1,25 @@
+# Build outputs
+/dist/
+
+# Local runtime diagnostics
+*.log
+/logs/
+
+# PowerShell and packaging scratch files
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Windows filesystem metadata
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor and IDE local state
+.vs/
+.vscode/
+.idea/
+
+# Local agent planning/work files
+/.ai-local/
