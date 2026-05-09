@@ -9,8 +9,12 @@ internal sealed class OverlayForm : Form
     private readonly NotifyIcon trayIcon = new();
     private readonly ContextMenuStrip trayMenu = new();
     private readonly ToolStripMenuItem showOverlayMenuItem = new("Show overlay");
+    private readonly ToolStripMenuItem settingsMenuItem = new("Settings...");
     private readonly ToolStripMenuItem exitMenuItem = new("Exit");
+    private readonly OverlaySettings settings = OverlaySettings.Load();
 
+    private SettingsForm? settingsForm;
+    private System.Windows.Forms.Timer? pinTimer;
     private bool isDragging;
     private Point cursorStart;
     private Point formStart;
@@ -22,13 +26,12 @@ internal sealed class OverlayForm : Form
         TopMost = true;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
-        BackColor = Color.Black;
-        Opacity = 0.75;
         Width = 260;
         Height = 42;
 
         ApplyStartupPosition();
         ConfigureLabel();
+        ApplyAppearanceSettings(settings);
         ConfigureTrayIcon();
         ConfigureTimers();
         ConfigureMouseHandlers(this);
@@ -38,6 +41,16 @@ internal sealed class OverlayForm : Form
 
         Shown += OnShown;
         FormClosed += OnFormClosed;
+    }
+
+    protected override void OnHandleCreated(EventArgs eventArgs)
+    {
+        base.OnHandleCreated(eventArgs);
+
+        if (Visible)
+        {
+            SchedulePinOverlayWindow();
+        }
     }
 
     private void ApplyStartupPosition()
@@ -74,6 +87,8 @@ internal sealed class OverlayForm : Form
     private void ConfigureTrayIcon()
     {
         trayMenu.Items.Add(showOverlayMenuItem);
+        trayMenu.Items.Add(settingsMenuItem);
+        trayMenu.Items.Add(new ToolStripSeparator());
         trayMenu.Items.Add(exitMenuItem);
 
         trayIcon.Text = AppDisplayName;
@@ -82,8 +97,19 @@ internal sealed class OverlayForm : Form
         trayIcon.Visible = true;
 
         showOverlayMenuItem.Click += (_, _) => ShowOverlay();
+        settingsMenuItem.Click += (_, _) => ShowSettings();
         trayIcon.DoubleClick += (_, _) => ShowOverlay();
         exitMenuItem.Click += (_, _) => Close();
+    }
+
+    private void ApplyAppearanceSettings(OverlaySettings appearanceSettings)
+    {
+        var isLightMode = appearanceSettings.Theme == OverlaySettings.LightTheme;
+
+        BackColor = isLightMode ? Color.WhiteSmoke : Color.Black;
+        label.ForeColor = isLightMode ? Color.Black : Color.White;
+        label.BackColor = Color.Transparent;
+        Opacity = appearanceSettings.Opacity;
     }
 
     private void ConfigureTimers()
@@ -176,32 +202,85 @@ internal sealed class OverlayForm : Form
     {
         Show();
         Activate();
+        SchedulePinOverlayWindow();
+    }
+
+    private void ShowSettings()
+    {
+        if (settingsForm is not null)
+        {
+            settingsForm.Activate();
+            return;
+        }
+
+        settingsForm = new SettingsForm(settings, SaveAppearanceSettings);
+        settingsForm.FormClosed += (_, _) => settingsForm = null;
+        settingsForm.Show();
+        settingsForm.Activate();
+    }
+
+    private void SaveAppearanceSettings(OverlaySettings appearanceSettings)
+    {
+        settings.Theme = appearanceSettings.Theme;
+        settings.Opacity = appearanceSettings.Opacity;
+        settings.Left = Left;
+        settings.Top = Top;
+
+        ApplyAppearanceSettings(settings);
+        OverlaySettings.Save(settings);
+        SchedulePinOverlayWindow();
     }
 
     private void OnShown(object? sender, EventArgs eventArgs)
     {
-        var pinTimer = new System.Windows.Forms.Timer { Interval = 500 };
+        SchedulePinOverlayWindow();
+    }
+
+    private void SchedulePinOverlayWindow()
+    {
+        if (!IsHandleCreated || IsDisposed)
+        {
+            return;
+        }
+
+        pinTimer?.Stop();
+        pinTimer?.Dispose();
+
+        pinTimer = new System.Windows.Forms.Timer { Interval = 500 };
         pinTimer.Tick += (_, _) =>
         {
-            pinTimer.Stop();
-            pinTimer.Dispose();
-
-            try
-            {
-                VirtualDesktopService.PinWindow(Handle);
-                label.Text = GetOverlayText();
-            }
-            catch (Exception ex)
-            {
-                OverlayLog.Write($"Failed to pin overlay window: {ex.Message}", "WARN");
-                label.Text = "Could not pin overlay";
-            }
+            pinTimer?.Stop();
+            pinTimer?.Dispose();
+            pinTimer = null;
+            PinOverlayWindow();
         };
         pinTimer.Start();
     }
 
+    private void PinOverlayWindow()
+    {
+        if (!IsHandleCreated || IsDisposed)
+        {
+            return;
+        }
+
+        try
+        {
+            VirtualDesktopService.PinWindow(Handle);
+            label.Text = GetOverlayText();
+        }
+        catch (Exception ex)
+        {
+            OverlayLog.Write($"Failed to pin overlay window: {ex.Message}", "WARN");
+            label.Text = "Could not pin overlay";
+        }
+    }
+
     private void OnFormClosed(object? sender, FormClosedEventArgs eventArgs)
     {
+        settingsForm?.Close();
+        pinTimer?.Stop();
+        pinTimer?.Dispose();
         refreshTimer.Stop();
         refreshTimer.Dispose();
         trayIcon.Visible = false;

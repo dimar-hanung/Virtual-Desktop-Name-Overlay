@@ -26,8 +26,9 @@ After publishing or installing, run the app directly:
 - Left-click and drag the overlay to move it.
 - Right-click the overlay to hide it to the notification area.
 - Double-click the tray icon, or choose `Show overlay`, to show it again.
+- Choose `Settings...` from the tray icon menu to switch between dark mode and light mode, and adjust transparency.
 - Choose `Exit` from the tray icon menu to close it.
-- The moved position is saved to `%LOCALAPPDATA%\VirtualDesktopOverlay\settings.json` and restored on the next launch when it is still visible on an attached screen.
+- The moved position and appearance settings are saved to `%LOCALAPPDATA%\VirtualDesktopOverlay\settings.json` and restored on the next launch when the saved position is still visible on an attached screen.
 
 ## Installer Behavior
 
