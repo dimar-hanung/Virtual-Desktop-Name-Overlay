@@ -16,23 +16,53 @@ internal static class VirtualDesktopService
 
     public static string GetCurrentDesktopName()
     {
-        var currentDesktopId = GetCurrentDesktopId();
-        var desktopIds = GetDesktopIds();
+        var current = GetDesktopList().FirstOrDefault(desktop => desktop.IsCurrent);
+        return current?.DisplayName ?? "Desktop";
+    }
 
-        var index = currentDesktopId is null
-            ? -1
-            : desktopIds.FindIndex(id => id == currentDesktopId.Value);
-
-        if (currentDesktopId is { } guid)
+    public static IReadOnlyList<VirtualDesktopInfo> GetDesktopList()
+    {
+        if (!IsSupportedWindowsVersion())
         {
-            var name = GetDesktopName(guid);
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                return name;
-            }
+            return [];
         }
 
-        return index >= 0 ? $"Desktop {index + 1}" : "Desktop";
+        try
+        {
+            var entries = VirtualDesktopSwitching.GetDesktopEntries();
+            if (entries.Count == 0)
+            {
+                return [];
+            }
+
+            return entries
+                .Select(entry => new VirtualDesktopInfo(
+                    entry.Index,
+                    entry.Id,
+                    ResolveDesktopDisplayName(entry.Id, entry.Index),
+                    entry.IsCurrent))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            OverlayLog.Write($"Failed to read virtual desktop list: {ex.Message}", "WARN");
+            return [];
+        }
+    }
+
+    public static bool TrySwitchToDesktop(int index, out string? error)
+    {
+        return VirtualDesktopSwitching.TrySwitchToDesktop(index, out error);
+    }
+
+    internal static IReadOnlyList<Guid> GetDesktopIdsForSwitching()
+    {
+        return GetDesktopIds();
+    }
+
+    public static Guid? TryGetCurrentDesktopId()
+    {
+        return GetCurrentDesktopId();
     }
 
     public static void PinWindow(IntPtr hWnd)
@@ -83,6 +113,12 @@ internal static class VirtualDesktopService
         yield return sessionPath;
     }
 
+    private static string ResolveDesktopDisplayName(Guid desktopId, int index)
+    {
+        var name = GetDesktopName(desktopId);
+        return !string.IsNullOrWhiteSpace(name) ? name : $"Desktop {index + 1}";
+    }
+
     private static string? GetDesktopName(Guid desktopId)
     {
         using var key = Registry.CurrentUser.OpenSubKey($@"{VirtualDesktopsRegistryPath}\Desktops\{{{desktopId}}}");
@@ -122,9 +158,6 @@ internal static class VirtualDesktopService
 
 internal static class VirtualDesktopPinning
 {
-    private static readonly Guid ClsidImmersiveShell = new("C2F03A33-21F5-47FA-B4BB-156362A2F239");
-    private static readonly Guid ClsidVirtualDesktopPinnedApps = new("B5A399E7-1C87-46B8-88E9-FC5747B171BD");
-
     public static void PinWindow(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero)
@@ -139,7 +172,7 @@ internal static class VirtualDesktopPinning
 
         try
         {
-            shell = Activator.CreateInstance(Type.GetTypeFromCLSID(ClsidImmersiveShell, true)!);
+            shell = Activator.CreateInstance(Type.GetTypeFromCLSID(ShellComGuids.ClsidImmersiveShell, true)!);
             var serviceProvider = (IServiceProvider10)shell!;
 
             var collectionService = typeof(IApplicationViewCollection).GUID;
@@ -147,7 +180,7 @@ internal static class VirtualDesktopPinning
             var viewCollection = (IApplicationViewCollection)serviceProvider.QueryService(ref collectionService, ref collectionInterface);
             viewCollectionObject = viewCollection;
 
-            var pinnedAppsService = ClsidVirtualDesktopPinnedApps;
+            var pinnedAppsService = ShellComGuids.ClsidVirtualDesktopPinnedApps;
             var pinnedAppsInterface = typeof(IVirtualDesktopPinnedApps).GUID;
             var pinnedApps = (IVirtualDesktopPinnedApps)serviceProvider.QueryService(ref pinnedAppsService, ref pinnedAppsInterface);
             pinnedAppsObject = pinnedApps;
@@ -183,15 +216,6 @@ internal static class VirtualDesktopPinning
                 Marshal.ReleaseComObject(shell);
             }
         }
-    }
-
-    [ComImport]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    [Guid("6D5140C1-7436-11CE-8034-00AA006009FA")]
-    private interface IServiceProvider10
-    {
-        [return: MarshalAs(UnmanagedType.IUnknown)]
-        object QueryService(ref Guid service, ref Guid riid);
     }
 
     [ComImport]
@@ -300,12 +324,4 @@ internal static class VirtualDesktopPinning
         void UnpinView(IApplicationView applicationView);
     }
 
-    [ComImport]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    [Guid("92CA9DCD-5622-4BBA-A805-5E9F541BD8C9")]
-    private interface IObjectArray
-    {
-        void GetCount(out int count);
-        void GetAt(int index, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object obj);
-    }
 }

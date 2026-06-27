@@ -7,11 +7,13 @@ internal sealed class OverlaySettings
     public const string DarkTheme = "Dark";
     public const string LightTheme = "Light";
     public const double DefaultOpacity = 0.75;
+    public const int MaxDesktopHotkeySlots = 9;
 
     public int Left { get; set; }
     public int Top { get; set; }
     public string Theme { get; set; } = DarkTheme;
     public double Opacity { get; set; } = DefaultOpacity;
+    public List<DesktopHotkeyBinding> DesktopHotkeys { get; set; } = CreateDefaultDesktopHotkeys();
 
     public static OverlaySettings Load()
     {
@@ -85,6 +87,56 @@ internal sealed class OverlaySettings
         }
 
         settings.Opacity = Math.Clamp(settings.Opacity, 0.3, 1.0);
+        settings.DesktopHotkeys = NormalizeDesktopHotkeys(settings.DesktopHotkeys);
         return settings;
+    }
+
+    private static List<DesktopHotkeyBinding> CreateDefaultDesktopHotkeys()
+    {
+        var bindings = new List<DesktopHotkeyBinding>();
+        for (var index = 0; index < MaxDesktopHotkeySlots; index++)
+        {
+            bindings.Add(new DesktopHotkeyBinding { DesktopIndex = index });
+        }
+
+        return bindings;
+    }
+
+    private static List<DesktopHotkeyBinding> NormalizeDesktopHotkeys(List<DesktopHotkeyBinding>? bindings)
+    {
+        var normalized = CreateDefaultDesktopHotkeys();
+        if (bindings is null)
+        {
+            return normalized;
+        }
+
+        var seenKeys = new HashSet<(int Modifiers, int Key)>();
+        foreach (var binding in bindings)
+        {
+            if (binding.DesktopIndex < 0 || binding.DesktopIndex >= MaxDesktopHotkeySlots)
+            {
+                continue;
+            }
+
+            if (!binding.IsConfigured)
+            {
+                continue;
+            }
+
+            var key = (binding.Modifiers, binding.Key);
+            if (!seenKeys.Add(key))
+            {
+                continue;
+            }
+
+            normalized[binding.DesktopIndex] = new DesktopHotkeyBinding
+            {
+                DesktopIndex = binding.DesktopIndex,
+                Modifiers = binding.Modifiers,
+                Key = binding.Key
+            };
+        }
+
+        return normalized;
     }
 }

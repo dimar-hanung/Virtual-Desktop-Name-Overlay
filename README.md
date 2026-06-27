@@ -1,6 +1,6 @@
 # Virtual Desktop Overlay
 
-Virtual Desktop Overlay is a lightweight native Windows WinForms overlay that shows the active Windows virtual desktop name. It reads virtual desktop state directly from Windows and uses COM interop to pin the overlay across desktops.
+Virtual Desktop Overlay is a lightweight native Windows WinForms overlay that lists your virtual desktops, highlights the active one, and lets you switch desktops by clicking a row or using configurable global hotkeys. It reads virtual desktop state from Windows and uses COM interop to pin the overlay across desktops and switch between them.
 
 ## Runtime Requirements
 
@@ -23,12 +23,16 @@ After publishing or installing, run the app directly:
 
 ## Overlay Controls
 
-- Left-click and drag the overlay to move it.
+- The overlay lists all virtual desktops. The active desktop is highlighted.
+- Left-click a desktop row to switch to that desktop.
+- Drag the thin strip at the top of the overlay to move it.
 - Right-click the overlay to hide it to the notification area.
 - Double-click the tray icon, or choose `Show overlay`, to show it again.
-- Choose `Settings...` from the tray icon menu to switch between dark mode and light mode, and adjust transparency.
+- Choose `Settings...` from the tray icon menu to switch between dark mode and light mode, adjust transparency, and configure global hotkeys for desktops 1 through 9.
 - Choose `Exit` from the tray icon menu to close it.
-- The moved position and appearance settings are saved to `%LOCALAPPDATA%\VirtualDesktopOverlay\settings.json` and restored on the next launch when the saved position is still visible on an attached screen.
+- The moved position, appearance, and desktop shortcut settings are saved to `%LOCALAPPDATA%\VirtualDesktopOverlay\settings.json` and restored on the next launch when the saved position is still visible on an attached screen.
+
+Desktop switching uses undocumented Windows Shell COM APIs (the same class of dependency as cross-desktop pinning). If switching stops working after a Windows update, check for an app update.
 
 ## Installer Behavior
 
