@@ -1,5 +1,5 @@
 #define MyAppName "Virtual Desktop Overlay"
-#define MyAppVersion "0.3.1"
+#define MyAppVersion "0.3.2"
 #define MyAppPublisher "dimar-hanung"
 #define MyAppURL "https://github.com/dimar-hanung/Virtual-Desktop-Name-Overlay"
 

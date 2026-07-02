@@ -6,12 +6,20 @@ internal sealed class OverlaySettings
 {
     public const string DarkTheme = "Dark";
     public const string LightTheme = "Light";
+    public const string LikeCurrentDesign = "LikeCurrent";
+    public const string FlexDesign = "Flex";
+    public const string JustShowActiveDesign = "JustShowActive";
     public const double DefaultOpacity = 0.75;
+    public const int DefaultFontSize = 11;
+    public const int MinFontSize = 8;
+    public const int MaxFontSize = 18;
     public const int MaxDesktopHotkeySlots = 9;
 
     public int Left { get; set; }
     public int Top { get; set; }
     public string Theme { get; set; } = DarkTheme;
+    public string DesignType { get; set; } = LikeCurrentDesign;
+    public int FontSize { get; set; } = DefaultFontSize;
     public double Opacity { get; set; } = DefaultOpacity;
     public List<DesktopHotkeyBinding> DesktopHotkeys { get; set; } = CreateDefaultDesktopHotkeys();
 
@@ -87,8 +95,25 @@ internal sealed class OverlaySettings
         }
 
         settings.Opacity = Math.Clamp(settings.Opacity, 0.3, 1.0);
+        settings.DesignType = NormalizeDesignType(settings.DesignType);
+        settings.FontSize = Math.Clamp(settings.FontSize, MinFontSize, MaxFontSize);
         settings.DesktopHotkeys = NormalizeDesktopHotkeys(settings.DesktopHotkeys);
         return settings;
+    }
+
+    private static string NormalizeDesignType(string? designType)
+    {
+        if (string.Equals(designType, FlexDesign, StringComparison.OrdinalIgnoreCase))
+        {
+            return FlexDesign;
+        }
+
+        if (string.Equals(designType, JustShowActiveDesign, StringComparison.OrdinalIgnoreCase))
+        {
+            return JustShowActiveDesign;
+        }
+
+        return LikeCurrentDesign;
     }
 
     private static List<DesktopHotkeyBinding> CreateDefaultDesktopHotkeys()

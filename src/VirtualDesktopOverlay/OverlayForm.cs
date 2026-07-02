@@ -4,11 +4,17 @@ internal sealed class OverlayForm : Form
 {
     private const string AppDisplayName = "Virtual Desktop Overlay";
     private const int OverlayWidth = 260;
-    private const int RowHeight = 32;
-    private const int VerticalPadding = 6;
+    private const int MinAutoWidth = 80;
+    private const int VerticalPadding = 4;
+    private const int ListHorizontalPadding = 8;
+    private const int FlexHorizontalPadding = 4;
+    private const int ListRowHorizontalPadding = 6;
+    private const int FlexChipHorizontalPadding = 4;
+    private const int FlexChipWidthBuffer = 14;
     private const int DragStripHeight = 8;
     private const int ClickDragThreshold = 4;
     private const int HotkeyIdBase = 0x4000;
+    private const int ChipSpacing = 2;
 
     // Tuned for readability at default overlay opacity (text/background contrast ~4.5:1+).
     private static readonly Color LightActiveBackground = Color.FromArgb(208, 232, 249);
@@ -30,8 +36,11 @@ internal sealed class OverlayForm : Form
     private readonly ToolStripMenuItem exitMenuItem = new("Exit");
     private readonly OverlaySettings settings = OverlaySettings.Load();
     private readonly Dictionary<int, int> registeredHotkeyIds = new();
-    private readonly Font rowFont = new("Segoe UI", 11, FontStyle.Regular);
-    private readonly Font activeRowFont = new("Segoe UI", 11, FontStyle.Bold);
+
+    private Font rowFont;
+    private Font activeRowFont;
+    private int rowHeight;
+    private int measuredContentWidth = OverlayWidth;
 
     private SettingsForm? settingsForm;
     private System.Windows.Forms.Timer? pinTimer;
@@ -44,6 +53,10 @@ internal sealed class OverlayForm : Form
 
     public OverlayForm()
     {
+        rowFont = CreateRowFont(settings.FontSize, FontStyle.Regular);
+        activeRowFont = CreateRowFont(settings.FontSize, FontStyle.Bold);
+        rowHeight = GetRowHeight(settings.FontSize);
+
         Text = AppDisplayName;
         FormBorderStyle = FormBorderStyle.None;
         TopMost = true;
@@ -123,9 +136,17 @@ internal sealed class OverlayForm : Form
         dragStrip.Cursor = Cursors.SizeAll;
 
         desktopListPanel.Dock = DockStyle.Fill;
-        desktopListPanel.Padding = new Padding(8, VerticalPadding, 8, VerticalPadding);
+        UpdatePanelPadding();
 
         ConfigureMouseHandlers(desktopListPanel);
+    }
+
+    private void UpdatePanelPadding()
+    {
+        var horizontalPadding = settings.DesignType == OverlaySettings.FlexDesign
+            ? FlexHorizontalPadding
+            : ListHorizontalPadding;
+        desktopListPanel.Padding = new Padding(horizontalPadding, VerticalPadding, horizontalPadding, VerticalPadding);
     }
 
     private void ConfigureTrayIcon()
@@ -154,8 +175,26 @@ internal sealed class OverlayForm : Form
         dragStrip.BackColor = isLightMode ? Color.Gainsboro : Color.FromArgb(38, 38, 38);
         desktopListPanel.BackColor = isLightMode ? Color.WhiteSmoke : Color.FromArgb(18, 18, 18);
         Opacity = appearanceSettings.Opacity;
+        UpdatePanelPadding();
+        UpdateFonts(appearanceSettings.FontSize);
+        lastDesktopListSignature = null;
         RefreshDesktopList();
     }
+
+    private void UpdateFonts(int fontSize)
+    {
+        rowFont.Dispose();
+        activeRowFont.Dispose();
+        rowFont = CreateRowFont(fontSize, FontStyle.Regular);
+        activeRowFont = CreateRowFont(fontSize, FontStyle.Bold);
+        rowHeight = GetRowHeight(fontSize);
+    }
+
+    private static Font CreateRowFont(int fontSize, FontStyle style) =>
+        new("Segoe UI", fontSize, style);
+
+    private static int GetRowHeight(int fontSize) =>
+        Math.Max(28, fontSize + 20);
 
     private void ConfigureTimers()
     {
@@ -182,7 +221,8 @@ internal sealed class OverlayForm : Form
             }
 
             statusMessage = null;
-            var signature = string.Join("|", desktops.Select(desktop => $"{desktop.Index}:{desktop.DisplayName}:{desktop.IsCurrent}"));
+            var desktopSignature = string.Join("|", desktops.Select(desktop => $"{desktop.Index}:{desktop.DisplayName}:{desktop.IsCurrent}"));
+            var signature = $"{settings.DesignType}:{settings.FontSize}|{desktopSignature}";
             if (signature == lastDesktopListSignature)
             {
                 return;
@@ -200,7 +240,7 @@ internal sealed class OverlayForm : Form
 
     private void RenderMessageRow(string message)
     {
-        var signature = $"message:{message}";
+        var signature = $"message:{settings.DesignType}:{settings.FontSize}:{message}";
         if (signature == lastDesktopListSignature)
         {
             return;
@@ -212,36 +252,115 @@ internal sealed class OverlayForm : Form
         var isLightMode = settings.Theme == OverlaySettings.LightTheme;
         var label = CreateRowLabel(message, isCurrent: false, rowFont, activeRowFont);
         label.Dock = DockStyle.Top;
-        label.Height = RowHeight;
+        label.Height = rowHeight;
         label.ForeColor = isLightMode ? LightRowForeground : DarkRowForeground;
         desktopListPanel.Controls.Add(label);
+
+        measuredContentWidth = UsesAutoWidth()
+            ? Math.Max(MinAutoWidth, MeasureTextWidth(message, rowFont) + FlexChipHorizontalPadding * 2 + FlexChipWidthBuffer)
+            : OverlayWidth;
         ResizeDesktopList();
     }
 
     private void RenderDesktopRows(IReadOnlyList<VirtualDesktopInfo> desktops)
     {
+        switch (settings.DesignType)
+        {
+            case OverlaySettings.FlexDesign:
+                RenderFlexRow(desktops);
+                break;
+            case OverlaySettings.JustShowActiveDesign:
+                RenderActiveOnly(desktops);
+                break;
+            default:
+                RenderVerticalList(desktops);
+                break;
+        }
+    }
+
+    private void RenderVerticalList(IReadOnlyList<VirtualDesktopInfo> desktops)
+    {
         desktopListPanel.Controls.Clear();
+        measuredContentWidth = OverlayWidth;
 
         for (var index = desktops.Count - 1; index >= 0; index--)
         {
             var desktop = desktops[index];
-            var row = CreateDesktopRow(desktop);
+            var row = CreateDesktopRow(desktop, enableClickToSwitch: true, ListRowHorizontalPadding);
             row.Dock = DockStyle.Top;
-            row.Height = RowHeight;
+            row.Height = rowHeight;
             desktopListPanel.Controls.Add(row);
         }
 
         ResizeDesktopList();
     }
 
-    private Panel CreateDesktopRow(VirtualDesktopInfo desktop)
+    private void RenderFlexRow(IReadOnlyList<VirtualDesktopInfo> desktops)
+    {
+        desktopListPanel.Controls.Clear();
+        UpdatePanelPadding();
+
+        var flowPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            AutoScroll = false,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+
+        var totalWidth = 0;
+        for (var index = 0; index < desktops.Count; index++)
+        {
+            var desktop = desktops[index];
+            var chip = CreateDesktopRow(desktop, enableClickToSwitch: true, FlexChipHorizontalPadding);
+            chip.Margin = new Padding(0, 0, index < desktops.Count - 1 ? ChipSpacing : 0, 0);
+            chip.Height = rowHeight;
+
+            var font = desktop.IsCurrent ? activeRowFont : rowFont;
+            var textWidth = MeasureTextWidth(desktop.DisplayName, font);
+            chip.Width = textWidth + FlexChipWidthBuffer + FlexChipHorizontalPadding * 2;
+
+            flowPanel.Controls.Add(chip);
+            totalWidth += chip.Width + chip.Margin.Right;
+        }
+
+        desktopListPanel.Controls.Add(flowPanel);
+        measuredContentWidth = Math.Max(MinAutoWidth, totalWidth + desktopListPanel.Padding.Horizontal);
+        ResizeDesktopList();
+    }
+
+    private void RenderActiveOnly(IReadOnlyList<VirtualDesktopInfo> desktops)
+    {
+        desktopListPanel.Controls.Clear();
+
+        var activeDesktop = desktops.FirstOrDefault(desktop => desktop.IsCurrent);
+        if (activeDesktop is null)
+        {
+            RenderMessageRow("No active desktop");
+            return;
+        }
+
+        var row = CreateDesktopRow(activeDesktop, enableClickToSwitch: false, FlexChipHorizontalPadding);
+        row.Dock = DockStyle.Top;
+        row.Height = rowHeight;
+        desktopListPanel.Controls.Add(row);
+
+        measuredContentWidth = Math.Max(
+            MinAutoWidth,
+            MeasureTextWidth(activeDesktop.DisplayName, activeRowFont) + FlexChipWidthBuffer + FlexChipHorizontalPadding * 2 + desktopListPanel.Padding.Horizontal);
+        ResizeDesktopList();
+    }
+
+    private Panel CreateDesktopRow(VirtualDesktopInfo desktop, bool enableClickToSwitch, int horizontalPadding)
     {
         var isLightMode = settings.Theme == OverlaySettings.LightTheme;
         var row = new Panel
         {
             Tag = desktop.Index,
-            Cursor = Cursors.Hand,
-            Padding = new Padding(6, 0, 6, 0)
+            Cursor = enableClickToSwitch ? Cursors.Hand : Cursors.Default,
+            Padding = new Padding(horizontalPadding, 0, horizontalPadding, 0)
         };
 
         ApplyRowAppearance(row, desktop.IsCurrent, isLightMode);
@@ -250,12 +369,15 @@ internal sealed class OverlayForm : Form
         label.Dock = DockStyle.Fill;
         row.Controls.Add(label);
 
-        row.MouseDown += OnRowMouseDown;
-        row.MouseMove += OnRowMouseMove;
-        row.MouseUp += OnRowMouseUp;
-        label.MouseDown += OnRowMouseDown;
-        label.MouseMove += OnRowMouseMove;
-        label.MouseUp += OnRowMouseUp;
+        if (enableClickToSwitch)
+        {
+            row.MouseDown += OnRowMouseDown;
+            row.MouseMove += OnRowMouseMove;
+            row.MouseUp += OnRowMouseUp;
+            label.MouseDown += OnRowMouseDown;
+            label.MouseMove += OnRowMouseMove;
+            label.MouseUp += OnRowMouseUp;
+        }
 
         return row;
     }
@@ -292,10 +414,28 @@ internal sealed class OverlayForm : Form
         }
     }
 
+    private int MeasureTextWidth(string text, Font font) =>
+        TextRenderer.MeasureText(
+            text,
+            font,
+            new Size(int.MaxValue, rowHeight),
+            TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
+
+    private bool UsesAutoWidth() =>
+        settings.DesignType is OverlaySettings.FlexDesign or OverlaySettings.JustShowActiveDesign;
+
     private void ResizeDesktopList()
     {
+        if (UsesAutoWidth())
+        {
+            Width = measuredContentWidth;
+            Height = DragStripHeight + VerticalPadding * 2 + rowHeight;
+            return;
+        }
+
+        Width = OverlayWidth;
         var rowCount = Math.Max(1, desktopListPanel.Controls.Count);
-        Height = DragStripHeight + VerticalPadding * 2 + RowHeight * rowCount;
+        Height = DragStripHeight + VerticalPadding * 2 + rowHeight * rowCount;
     }
 
     private static bool IsLeftMouseButtonHeld() =>
@@ -517,6 +657,8 @@ internal sealed class OverlayForm : Form
     private void SaveAppearanceSettings(OverlaySettings appearanceSettings)
     {
         settings.Theme = appearanceSettings.Theme;
+        settings.DesignType = appearanceSettings.DesignType;
+        settings.FontSize = appearanceSettings.FontSize;
         settings.Opacity = appearanceSettings.Opacity;
         settings.DesktopHotkeys = appearanceSettings.DesktopHotkeys;
         settings.Left = Left;

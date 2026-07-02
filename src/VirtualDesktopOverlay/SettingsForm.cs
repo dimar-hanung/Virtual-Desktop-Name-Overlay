@@ -4,16 +4,28 @@ internal sealed class SettingsForm : Form
 {
     private const int MinimumTransparencyPercent = 0;
     private const int MaximumTransparencyPercent = 70;
+    private const int LayoutMargin = 16;
+    private const int ValueLabelWidth = 56;
 
     private readonly RadioButton darkModeRadioButton = new();
     private readonly RadioButton lightModeRadioButton = new();
+    private readonly RadioButton likeCurrentDesignRadioButton = new();
+    private readonly RadioButton flexDesignRadioButton = new();
+    private readonly RadioButton justShowActiveDesignRadioButton = new();
     private readonly TrackBar transparencyTrackBar = new();
     private readonly Label transparencyValueLabel = new();
+    private readonly TrackBar fontSizeTrackBar = new();
+    private readonly Label fontSizeValueLabel = new();
     private readonly Button saveButton = new();
     private readonly Button cancelButton = new();
     private readonly List<HotkeyRowControls> hotkeyRows = [];
     private readonly Action<OverlaySettings> saveSettings;
 
+    private GroupBox? themeGroup;
+    private GroupBox? designTypeGroup;
+    private GroupBox? hotkeyGroup;
+    private Label? transparencyLabel;
+    private Label? fontSizeLabel;
     private int? capturingDesktopIndex;
     private Label? hotkeyStatusLabel;
 
@@ -22,25 +34,28 @@ internal sealed class SettingsForm : Form
         this.saveSettings = saveSettings;
 
         Text = "Settings";
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterScreen;
         ShowInTaskbar = false;
         MaximizeBox = false;
-        MinimizeBox = false;
+        MinimizeBox = true;
+        MinimumSize = new Size(420, 680);
         KeyPreview = true;
-        ClientSize = new Size(420, 520);
+        ClientSize = new Size(420, 680);
 
         ConfigureControls(settings);
+        LayoutControls();
+        Resize += (_, _) => LayoutControls();
         KeyDown += OnKeyDownCapture;
         KeyUp += OnKeyUpCapture;
     }
 
     private void ConfigureControls(OverlaySettings settings)
     {
-        var themeGroup = new GroupBox
+        themeGroup = new GroupBox
         {
             Text = "Theme",
-            Location = new Point(16, 16),
+            Location = new Point(LayoutMargin, LayoutMargin),
             Size = new Size(388, 78)
         };
 
@@ -55,11 +70,34 @@ internal sealed class SettingsForm : Form
         themeGroup.Controls.Add(darkModeRadioButton);
         themeGroup.Controls.Add(lightModeRadioButton);
 
-        var transparencyLabel = new Label
+        designTypeGroup = new GroupBox
+        {
+            Text = "Design type",
+            Location = new Point(LayoutMargin, 104),
+            Size = new Size(388, 100)
+        };
+
+        likeCurrentDesignRadioButton.Text = "Like current";
+        likeCurrentDesignRadioButton.AutoSize = true;
+        likeCurrentDesignRadioButton.Location = new Point(18, 28);
+
+        flexDesignRadioButton.Text = "Flex";
+        flexDesignRadioButton.AutoSize = true;
+        flexDesignRadioButton.Location = new Point(18, 52);
+
+        justShowActiveDesignRadioButton.Text = "Just show Active";
+        justShowActiveDesignRadioButton.AutoSize = true;
+        justShowActiveDesignRadioButton.Location = new Point(18, 76);
+
+        designTypeGroup.Controls.Add(likeCurrentDesignRadioButton);
+        designTypeGroup.Controls.Add(flexDesignRadioButton);
+        designTypeGroup.Controls.Add(justShowActiveDesignRadioButton);
+
+        transparencyLabel = new Label
         {
             Text = "Transparency",
             AutoSize = true,
-            Location = new Point(16, 108)
+            Location = new Point(LayoutMargin, 216)
         };
 
         transparencyTrackBar.Minimum = MinimumTransparencyPercent;
@@ -67,17 +105,36 @@ internal sealed class SettingsForm : Form
         transparencyTrackBar.TickFrequency = 10;
         transparencyTrackBar.SmallChange = 5;
         transparencyTrackBar.LargeChange = 10;
-        transparencyTrackBar.Location = new Point(16, 132);
+        transparencyTrackBar.Location = new Point(LayoutMargin, 240);
         transparencyTrackBar.Size = new Size(300, 45);
         transparencyTrackBar.ValueChanged += (_, _) => UpdateTransparencyValueLabel();
 
         transparencyValueLabel.AutoSize = true;
-        transparencyValueLabel.Location = new Point(326, 138);
+        transparencyValueLabel.Location = new Point(326, 246);
 
-        var hotkeyGroup = new GroupBox
+        fontSizeLabel = new Label
+        {
+            Text = "Font size",
+            AutoSize = true,
+            Location = new Point(LayoutMargin, 292)
+        };
+
+        fontSizeTrackBar.Minimum = OverlaySettings.MinFontSize;
+        fontSizeTrackBar.Maximum = OverlaySettings.MaxFontSize;
+        fontSizeTrackBar.TickFrequency = 2;
+        fontSizeTrackBar.SmallChange = 1;
+        fontSizeTrackBar.LargeChange = 2;
+        fontSizeTrackBar.Location = new Point(LayoutMargin, 316);
+        fontSizeTrackBar.Size = new Size(300, 45);
+        fontSizeTrackBar.ValueChanged += (_, _) => UpdateFontSizeValueLabel();
+
+        fontSizeValueLabel.AutoSize = true;
+        fontSizeValueLabel.Location = new Point(326, 322);
+
+        hotkeyGroup = new GroupBox
         {
             Text = "Desktop shortcuts",
-            Location = new Point(16, 188),
+            Location = new Point(LayoutMargin, 372),
             Size = new Size(388, 280)
         };
 
@@ -133,18 +190,16 @@ internal sealed class SettingsForm : Form
             hotkeyGroup.Controls.Add(setButton);
             hotkeyGroup.Controls.Add(clearButton);
 
-            hotkeyRows.Add(new HotkeyRowControls(desktopIndex, hotkeyTextBox, binding));
+            hotkeyRows.Add(new HotkeyRowControls(desktopIndex, hotkeyTextBox, setButton, clearButton, binding));
         }
 
         hotkeyGroup.Controls.Add(hotkeyStatusLabel);
 
         saveButton.Text = "Save";
-        saveButton.Location = new Point(244, 480);
         saveButton.Size = new Size(75, 26);
         saveButton.Click += (_, _) => SaveAndClose();
 
         cancelButton.Text = "Cancel";
-        cancelButton.Location = new Point(329, 480);
         cancelButton.Size = new Size(75, 26);
         cancelButton.DialogResult = DialogResult.Cancel;
 
@@ -152,9 +207,13 @@ internal sealed class SettingsForm : Form
         CancelButton = cancelButton;
 
         Controls.Add(themeGroup);
+        Controls.Add(designTypeGroup);
         Controls.Add(transparencyLabel);
         Controls.Add(transparencyTrackBar);
         Controls.Add(transparencyValueLabel);
+        Controls.Add(fontSizeLabel);
+        Controls.Add(fontSizeTrackBar);
+        Controls.Add(fontSizeValueLabel);
         Controls.Add(hotkeyGroup);
         Controls.Add(saveButton);
         Controls.Add(cancelButton);
@@ -162,12 +221,69 @@ internal sealed class SettingsForm : Form
         ApplySettingsToControls(settings);
     }
 
+    private void LayoutControls()
+    {
+        if (themeGroup is null || designTypeGroup is null || hotkeyGroup is null)
+        {
+            return;
+        }
+
+        var contentWidth = ClientSize.Width - LayoutMargin * 2;
+        var buttonTop = ClientSize.Height - LayoutMargin - saveButton.Height;
+
+        themeGroup.Width = contentWidth;
+        designTypeGroup.Top = themeGroup.Bottom + 10;
+        designTypeGroup.Width = contentWidth;
+
+        transparencyLabel!.Top = designTypeGroup.Bottom + 12;
+        transparencyTrackBar.Top = transparencyLabel.Bottom + 4;
+        transparencyTrackBar.Width = contentWidth - ValueLabelWidth;
+        transparencyValueLabel.Left = transparencyTrackBar.Right + 8;
+        transparencyValueLabel.Top = transparencyTrackBar.Top + 6;
+
+        fontSizeLabel!.Top = transparencyTrackBar.Bottom + 12;
+        fontSizeTrackBar.Top = fontSizeLabel.Bottom + 4;
+        fontSizeTrackBar.Width = contentWidth - ValueLabelWidth;
+        fontSizeValueLabel.Left = fontSizeTrackBar.Right + 8;
+        fontSizeValueLabel.Top = fontSizeTrackBar.Top + 6;
+
+        hotkeyGroup.Top = fontSizeTrackBar.Bottom + 16;
+        hotkeyGroup.Width = contentWidth;
+        hotkeyGroup.Height = Math.Max(180, buttonTop - hotkeyGroup.Top - 12);
+
+        var hotkeyTextWidth = Math.Max(120, hotkeyGroup.Width - 96 - 44 - 52 - 24);
+        var setButtonLeft = hotkeyGroup.Width - 44 - 52 - 12;
+        var clearButtonLeft = hotkeyGroup.Width - 52 - 12;
+
+        foreach (var row in hotkeyRows)
+        {
+            row.HotkeyTextBox.Width = hotkeyTextWidth;
+            row.SetButton.Left = setButtonLeft;
+            row.ClearButton.Left = clearButtonLeft;
+        }
+
+        hotkeyStatusLabel!.Top = hotkeyGroup.Height - 28;
+
+        saveButton.Top = buttonTop;
+        cancelButton.Top = buttonTop;
+        cancelButton.Left = ClientSize.Width - LayoutMargin - cancelButton.Width;
+        saveButton.Left = cancelButton.Left - 10 - saveButton.Width;
+    }
+
     private void ApplySettingsToControls(OverlaySettings settings)
     {
         lightModeRadioButton.Checked = settings.Theme == OverlaySettings.LightTheme;
         darkModeRadioButton.Checked = !lightModeRadioButton.Checked;
+
+        likeCurrentDesignRadioButton.Checked = settings.DesignType == OverlaySettings.LikeCurrentDesign;
+        flexDesignRadioButton.Checked = settings.DesignType == OverlaySettings.FlexDesign;
+        justShowActiveDesignRadioButton.Checked = settings.DesignType == OverlaySettings.JustShowActiveDesign;
+
         transparencyTrackBar.Value = Convert.ToInt32((1.0 - settings.Opacity) * 100);
         UpdateTransparencyValueLabel();
+
+        fontSizeTrackBar.Value = settings.FontSize;
+        UpdateFontSizeValueLabel();
 
         foreach (var row in hotkeyRows)
         {
@@ -181,6 +297,26 @@ internal sealed class SettingsForm : Form
     private void UpdateTransparencyValueLabel()
     {
         transparencyValueLabel.Text = $"{transparencyTrackBar.Value}%";
+    }
+
+    private void UpdateFontSizeValueLabel()
+    {
+        fontSizeValueLabel.Text = $"{fontSizeTrackBar.Value} pt";
+    }
+
+    private string GetSelectedDesignType()
+    {
+        if (flexDesignRadioButton.Checked)
+        {
+            return OverlaySettings.FlexDesign;
+        }
+
+        if (justShowActiveDesignRadioButton.Checked)
+        {
+            return OverlaySettings.JustShowActiveDesign;
+        }
+
+        return OverlaySettings.LikeCurrentDesign;
     }
 
     private void BeginHotkeyCapture(int desktopIndex)
@@ -309,6 +445,8 @@ internal sealed class SettingsForm : Form
         saveSettings(new OverlaySettings
         {
             Theme = lightModeRadioButton.Checked ? OverlaySettings.LightTheme : OverlaySettings.DarkTheme,
+            DesignType = GetSelectedDesignType(),
+            FontSize = fontSizeTrackBar.Value,
             Opacity = (100 - transparencyTrackBar.Value) / 100.0,
             DesktopHotkeys = hotkeyRows.Select(row => row.Binding).ToList()
         });
@@ -316,11 +454,20 @@ internal sealed class SettingsForm : Form
         Close();
     }
 
-    private sealed class HotkeyRowControls(int desktopIndex, TextBox hotkeyTextBox, DesktopHotkeyBinding binding)
+    private sealed class HotkeyRowControls(
+        int desktopIndex,
+        TextBox hotkeyTextBox,
+        Button setButton,
+        Button clearButton,
+        DesktopHotkeyBinding binding)
     {
         public int DesktopIndex { get; } = desktopIndex;
 
         public TextBox HotkeyTextBox { get; } = hotkeyTextBox;
+
+        public Button SetButton { get; } = setButton;
+
+        public Button ClearButton { get; } = clearButton;
 
         public DesktopHotkeyBinding Binding { get; set; } = binding;
     }
