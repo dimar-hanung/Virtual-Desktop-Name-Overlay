@@ -26,7 +26,7 @@ After publishing or installing, run the app directly:
 - The overlay lists all virtual desktops. The active desktop is highlighted.
 - Left-click a desktop row to switch to that desktop.
 - Drag the thin strip at the top of the overlay to move it.
-- Right-click the overlay to hide it to the notification area.
+- Choose `Hide overlay` from the tray icon menu to hide it to the notification area.
 - Double-click the tray icon, or choose `Show overlay`, to show it again.
 - Choose `Settings...` from the tray icon menu to switch between dark mode and light mode, adjust transparency, and configure global hotkeys for desktops 1 through 9.
 - Choose `Exit` from the tray icon menu to close it.

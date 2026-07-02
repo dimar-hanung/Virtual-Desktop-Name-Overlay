@@ -10,7 +10,7 @@ Use this checklist before sharing a Windows installer outside the development ma
 6. Confirm left-clicking a desktop row switches to that desktop.
 7. In `Settings...`, assign a global hotkey to a desktop, save, and confirm the hotkey switches correctly.
 8. Restart the app and confirm configured desktop hotkeys still work.
-9. Confirm right-clicking the overlay hides it to the notification area, and the tray menu can show or exit it.
+9. Confirm right-clicking the overlay does nothing, and the tray menu can hide, show, or exit it.
 10. Confirm dragging the top strip moves the overlay and the taller list layout still pins across desktops.
 11. Run the app again while the overlay is open and confirm no duplicate overlay appears.
 12. Enable `Start with Windows`, sign out and sign back in, and confirm the overlay starts in the interactive user session.

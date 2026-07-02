@@ -32,6 +32,7 @@ internal sealed class OverlayForm : Form
     private readonly NotifyIcon trayIcon = new();
     private readonly ContextMenuStrip trayMenu = new();
     private readonly ToolStripMenuItem showOverlayMenuItem = new("Show overlay");
+    private readonly ToolStripMenuItem hideOverlayMenuItem = new("Hide overlay");
     private readonly ToolStripMenuItem settingsMenuItem = new("Settings...");
     private readonly ToolStripMenuItem exitMenuItem = new("Exit");
     private readonly OverlaySettings settings = OverlaySettings.Load();
@@ -137,8 +138,6 @@ internal sealed class OverlayForm : Form
 
         desktopListPanel.Dock = DockStyle.Fill;
         UpdatePanelPadding();
-
-        ConfigureMouseHandlers(desktopListPanel);
     }
 
     private void UpdatePanelPadding()
@@ -152,6 +151,7 @@ internal sealed class OverlayForm : Form
     private void ConfigureTrayIcon()
     {
         trayMenu.Items.Add(showOverlayMenuItem);
+        trayMenu.Items.Add(hideOverlayMenuItem);
         trayMenu.Items.Add(settingsMenuItem);
         trayMenu.Items.Add(new ToolStripSeparator());
         trayMenu.Items.Add(exitMenuItem);
@@ -162,9 +162,11 @@ internal sealed class OverlayForm : Form
         trayIcon.Visible = true;
 
         showOverlayMenuItem.Click += (_, _) => ShowOverlay();
+        hideOverlayMenuItem.Click += (_, _) => HideOverlay();
         settingsMenuItem.Click += (_, _) => ShowSettings();
         trayIcon.DoubleClick += (_, _) => ShowOverlay();
         exitMenuItem.Click += (_, _) => Close();
+        UpdateTrayMenuState();
     }
 
     private void ApplyAppearanceSettings(OverlaySettings appearanceSettings)
@@ -510,12 +512,6 @@ internal sealed class OverlayForm : Form
 
     private void OnRowMouseUp(object? sender, MouseEventArgs eventArgs)
     {
-        if (eventArgs.Button == MouseButtons.Right)
-        {
-            Hide();
-            return;
-        }
-
         if (eventArgs.Button != MouseButtons.Left)
         {
             return;
@@ -566,12 +562,6 @@ internal sealed class OverlayForm : Form
         control.MouseDown += StartDrag;
         control.MouseMove += MoveDrag;
         control.MouseUp += StopDrag;
-        control.MouseUp += HideOnRightClick;
-    }
-
-    private void ConfigureMouseHandlers(Control control)
-    {
-        control.MouseUp += HideOnRightClick;
     }
 
     private void StartDrag(object? sender, MouseEventArgs eventArgs)
@@ -624,20 +614,25 @@ internal sealed class OverlayForm : Form
         OverlaySettings.SavePosition(this);
     }
 
-    private void HideOnRightClick(object? sender, MouseEventArgs eventArgs)
-    {
-        if (eventArgs.Button == MouseButtons.Right)
-        {
-            Hide();
-        }
-    }
-
     private void ShowOverlay()
     {
         Show();
         Activate();
         SchedulePinOverlayWindow();
         RegisterDesktopHotkeys();
+        UpdateTrayMenuState();
+    }
+
+    private void HideOverlay()
+    {
+        Hide();
+        UpdateTrayMenuState();
+    }
+
+    private void UpdateTrayMenuState()
+    {
+        showOverlayMenuItem.Enabled = !Visible;
+        hideOverlayMenuItem.Enabled = Visible;
     }
 
     private void ShowSettings()
@@ -726,6 +721,7 @@ internal sealed class OverlayForm : Form
         SchedulePinOverlayWindow();
         RegisterDesktopHotkeys();
         RefreshDesktopList();
+        UpdateTrayMenuState();
     }
 
     private void SchedulePinOverlayWindow()
